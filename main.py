@@ -82,7 +82,7 @@ def return_to_menu():
 
 
 clock = pygame.time.Clock()
-running = True
+running = False
 
 title_font = pygame.font.Font(None, 100)
 title = title_font.render("Road Crosser", True, (0, 0, 0))
@@ -94,8 +94,8 @@ option_button = ToggleButton((225, 450), (200, 50), ["Human", "AI (NEAT)", "AI (
 game = None
 training = True
 
-# run_neat()
-run_ann()
+run_neat()
+# run_ann()
 
 while running:
     for event in pygame.event.get():

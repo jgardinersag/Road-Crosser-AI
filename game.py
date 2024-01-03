@@ -190,7 +190,7 @@ class Neat(Game):
                                        float(closest[2][1][0]), float(closest[2][1][1]) + 660 * player[0].level, float(closest[2][1][2] * 50), float(closest[2][1][3])))
             else:
                 # Place-holder output values are given to dead players
-                player_outputs.append((-1, -1, -1, -1, -1, -1, -1, -1))
+                player_outputs.append((-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1))
 
         self.count -= 1
 
