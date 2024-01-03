@@ -1,1 +1,5 @@
 1-neat-checkpoint-3297
+best_fitness_ann.csv
+best_fitness_neat.csv
+final_ann.pth
+neat-winner.pkl
