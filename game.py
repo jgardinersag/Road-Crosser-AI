@@ -290,8 +290,106 @@ class Neat(Game):
                 run = False
 
             clock.tick(60)
-        return max([genome[1].fitness for genome in genomes])
+        max_ = -1
+        best_genome = None
+        for genome in genomes:
+            if genome[1].fitness >= max_:
+                best_genome = genome
+        return best_genome[1]
 
+    def run_genome(self, genomes, config):
+        clock = pygame.time.Clock()
+        screen_width = 650
+        screen_height = 750
+        screen = pygame.display.set_mode((screen_width, screen_height))
+        background(screen, "NEAT")
+        nets = []
+        for genome in genomes:
+            # Need networks in a list as everything else is in a list regarding the players; works in parallel with
+            # self.players list
+            nets.append(neatnn.FeedForwardNetwork.create(genome, config))
+            genome.fitness = 0 if genome.fitness is None else genome.fitness
+        run = True
+        maximum = 0
+        while run:
+            background(screen, "NEAT")
+            # Runs a frame of the game, extracting necessary inputs
+            inputs = self.loop(screen)
+
+            for i in range(len(self.players)):
+                player = self.players[i]
+                # Confirming that player is still alive
+                if player is not None:
+                    # Calculating the cumulative differences of past 100 y-values
+                    for j in range(1, len(player[1])):
+                        player[1][len(player[1]) - j] = player[1][len(player[1]) - j - 1]
+                    player[1][0] = player[0].y
+                    dif = 0
+                    for g in range(1, len(player[1])):
+                        dif += player[1][len(player[1]) - g] - player[1][len(player[1]) - g - 1]
+
+                    # Calculates the outputs of the player's respective neural network based off of the player's
+                    # respective inputs
+                    if self.count == -1 and not player[0].mid_move:
+                        output = nets[i].activate(inputs[i])
+                        choice = output.index(max(output))
+                        # Updating list of past 13 outputs from the network
+                        for j in range(1, len(player[3])):
+                            player[3][len(player[3]) - j] = player[3][len(player[3]) - j - 1]
+                        player[3][0] = choice
+                        # Player makes its move based off the output from the network
+                        player[0].move(choice)
+                    # Setting player's stagnation to 0 if the player moves between more than two lanes
+                    if dif > 50 or dif < -50:
+                        player[2] = 0
+                    # Ends the player's life if they:
+                    # 1. Died by getting hit by a car
+                    # 2. Were removed due to a stagnating y-value
+                    if player[0].is_dead or player[2] == 500 + (player[0].level // 2) * 50:
+                        # Fitness is set to score achieved by the player
+                        genomes[i].fitness = player[0].score
+
+                        # Possible other fitness function which calculates the average score and stagnation in
+                        # decision-making that produced worse results
+                        # (genomes[i][1].fitness * (self.num_gen - 1)  + player[0].score - player[4]) / self.num_gen
+
+                        # Updating maximum score
+                        maximum = player[0].score if player[0].score > maximum else maximum
+                        # Setting that failed player's list to None, signifying its death
+                        self.players[i] = None
+
+                    # Increases the player's stagnation regardless, will be set to 0 again if it is not stagnating
+                    player[2] += 1
+
+                    # Calculating 13 past cumulative decisions made by the player, used in fitness function that is
+                    # currently not being used
+                    for h in range(2, 4):
+                        sum = 0
+                        for j in player[3]:
+                            sum += 1 if j == h else 0
+                        if sum == len(player[3]):
+                            player[4] += .1
+
+            # Updates pygame window with some useful information
+            font = pygame.font.Font(None, 20)
+            screen.blit(font.render("SCORE: " + str(int(max([genome.fitness for genome in genomes]))), True, (0, 0, 0)), (10, 710))
+            pygame.display.update()
+
+            # Calculates when all players have died
+            i = 0
+            for player in self.players:
+                if player is None:
+                    i += 1
+            if i == len(self.players):
+                run = False
+
+            clock.tick(60)
+        max_ = -1
+        best_genome = None
+        for genome in genomes:
+            if genome.fitness >= max_:
+                best_genome = genome
+        return best_genome.fitness
 
 # Class for the simple Artificial Neural Network used
 # Uses PyTorch module class
@@ -389,14 +487,14 @@ class SimpleANN(Game):
         # SGD Optimizer, a process which minimizes the loss function by adjusting weights in the neural network based
         # on the largest rate of increase, or gradient, of the function. The learning rate affects how large the "steps"
         # or changes the optimizer makes each iteration
-        optimizer = optim.SGD(model.parameters(), lr=0.3)
+        optimizer = optim.SGD(model.parameters(), lr=.5)
         run = True
         # Maximum fitness
         threshold = 690
         i = 0
         fitness = 0
         # i value is the maximum amount of generations and threshold is maximum fitness
-        while i < 250000000 and fitness < threshold:
+        while i < 3000 and fitness < threshold:
             self.player = Player()
             self.level = 0
             self.score = 0
@@ -455,3 +553,45 @@ class SimpleANN(Game):
             i += 1
             print(f"iteration {i} complete")
         return model
+
+    def run_model(self, model):
+        clock = pygame.time.Clock()
+        screen_width = 650
+        screen_height = 750
+        screen = pygame.display.set_mode((screen_width, screen_height), pygame.RESIZABLE)
+        stagnation = 0
+        run = True
+        y = [-1 for _ in range(100)]
+        while run:
+            background(screen, "SIMPLE ANN")
+            # Runs a frame of the game, extracting necessary inputs
+            inputs = self.loop(screen)
+            # Calculating the cumulative differences of past 100 y-values
+            for j in range(1, len(y)):
+                y[len(y) - j] = y[len(y) - j - 1]
+            y[0] = self.player.y
+            dif = 0
+            for g in range(1, len(y)):
+                dif += y[len(y) - g] - y[len(y) - g - 1]
+
+            if self.count == -1:
+                # Calculates the outputs of the player's neural network based off of the inputs
+                output = model(torch.tensor(inputs, dtype=torch.float))
+                # Making a move based off of the maximum output
+                self.player.move(torch.argmax(output))
+            # Resetting stagnation if the player moved between more than two lanes
+            if dif > 50 or dif < -50:
+                stagnation = 0
+            # Once the player is either dead or no longer making insightful moves, we set the fitness to the score
+            # received and iterate again
+            if self.player.is_dead or stagnation == 500 + (self.player.level // 2) * 50:
+                fitness = self.score
+                run = False
+                break
+            stagnation += 1
+            font = pygame.font.Font(None, 40)
+            screen.blit(
+                font.render("SCORE: " + str(self.score), True, (0, 0, 0)), (10, 710))
+            pygame.display.update()
+            clock.tick(60)
+        return self.score

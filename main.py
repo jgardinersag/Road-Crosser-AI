@@ -1,4 +1,5 @@
-import time
+# Justin Gardiner Extended Essay
+
 from GUI import *
 from game import *
 from neat import *
@@ -43,15 +44,41 @@ def run_neat():
     local_dir = os.path.dirname(__file__)
     config_path = os.path.join(local_dir, "config.txt")
     config = Config(DefaultGenome, DefaultReproduction, DefaultSpeciesSet, DefaultStagnation, config_path)
-    p = Population(config)
-    # p = Checkpointer.restore_checkpoint("neat-checkpoint-458")
+    # p = Population(config)
+    p = Checkpointer.restore_checkpoint("neat-checkpoint-2999")
     p.add_reporter(StdOutReporter(True))
     stats = StatisticsReporter()
     p.add_reporter(stats)
-    p.add_reporter(Checkpointer(500))
-    winner = p.run(eval_genomes, 5000)
+    p.add_reporter(Checkpointer(300))
+    winner = p.run(eval_genomes, 1)
+    # print(sum([1 if node.type == 'hidden' else 0 for node in winner.nodes]))
     with open('neat-winner.pkl', 'wb') as file:
         pickle.dump(winner, file)
+
+
+def run_best_ann():
+    model = ANN(14, 4, 5)
+    model.load_state_dict(torch.load('final_ann.pth'))
+    csv_file_path = "score_of_best_ann.csv"
+    for i in range(1, 2):
+        score = SimpleANN().run_model(model)
+        with open(csv_file_path, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow([i, score])
+
+
+def run_best_neat():
+    with open('neat-winner.pkl', 'rb') as f:
+        genome = pickle.load(f)
+    local_dir = os.path.dirname(__file__)
+    config_path = os.path.join(local_dir, "config.txt")
+    config = Config(DefaultGenome, DefaultReproduction, DefaultSpeciesSet, DefaultStagnation, config_path)
+    csv_file_path = "scores_of_best_neat.csv"
+    for i in range(1, 2):
+        score = Neat(0, 1).run_genome([genome], config)
+        with open(csv_file_path, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow([i, score])
 
 
 # Function to evaluate genomes needed by run function of the neat-python population class
@@ -61,9 +88,12 @@ def eval_genomes(genomes, config):
     global gen_count
     best = Neat(gen_count, len(genomes)).train(genomes, config)
     csv_file_path = "best_fitness_neat.csv"
+    for nodeid in best.nodes:
+        print(best.nodes[nodeid])
+
     with open(csv_file_path, mode='a', newline='') as file:
         writer = csv.writer(file)
-        writer.writerow([gen_count, best])
+        writer.writerow([gen_count, best.fitness])
     gen_count += 1
 
 
@@ -82,7 +112,7 @@ def return_to_menu():
 
 
 clock = pygame.time.Clock()
-running = False
+running = True
 
 title_font = pygame.font.Font(None, 100)
 title = title_font.render("Road Crosser", True, (0, 0, 0))
@@ -94,8 +124,15 @@ option_button = ToggleButton((225, 450), (200, 50), ["Human", "AI (NEAT)", "AI (
 game = None
 training = True
 
-run_neat()
+# run_neat()
 # run_ann()
+# run_best_neat()
+# run_best_ann()
+
+
+with open('neat-winner.pkl', 'rb') as f:
+    genome = pickle.load(f)
+print(len(genome.connections))
 
 while running:
     for event in pygame.event.get():
@@ -117,10 +154,10 @@ while running:
             if info is None:
                 return_to_menu()
         elif option_button.chosen == "AI (NEAT)":
-            run_neat()
+            run_best_neat()
             return_to_menu()
         elif option_button.chosen == "AI (Traditional ANN)":
-            run_ann()
+            run_best_ann()
             return_to_menu()
 
     pygame.display.update()
